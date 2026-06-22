@@ -1,118 +1,139 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="60">
-  <title>Living Room Temperature</title>
-  <style>
-    :root {
-      --accent: {{ accent }};
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(circle at 30% 20%, #1f2937, #0b1120 70%);
-      color: #e5e7eb;
-      padding: 1.5rem;
-    }
-    .card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 24px;
-      padding: 3rem 3.5rem;
-      text-align: center;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-      max-width: 520px;
-      width: 100%;
-    }
-    .chart {
-      margin-top: 2rem;
-      height: 200px;
-    }
-    .label {
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      font-size: 0.8rem;
-      color: #9ca3af;
-      margin-bottom: 1.5rem;
-    }
-    .temp {
-      font-size: 5rem;
-      font-weight: 700;
-      line-height: 1;
-      color: var(--accent);
-    }
-    .temp .unit {
-      font-size: 2rem;
-      font-weight: 500;
-      color: #9ca3af;
-      margin-left: 0.25rem;
-    }
-    .updated {
-      margin-top: 1.75rem;
-      font-size: 0.9rem;
-      color: #6b7280;
-    }
-    .dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      margin-right: 0.4rem;
-      vertical-align: middle;
-    }
-  </style>
-</head>
-<body>
-  <main class="card">
-    <div class="label">Living Room</div>
-    <div class="temp">{{ value }}<span class="unit">{{ unit }}</span></div>
-    <div class="updated"><span class="dot"></span>Updated {{ updated }}</div>
-    <div class="chart"><canvas id="tempChart"></canvas></div>
-  </main>
-  <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
-  <script>
-    const labels = {{ labels | tojson }};
-    const points = {{ points | tojson }};
-    const accent = getComputedStyle(document.documentElement)
-      .getPropertyValue('--accent').trim();
-    new Chart(document.getElementById('tempChart'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: points,
-          borderColor: accent,
-          backgroundColor: accent + '22',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.35,
-          pointRadius: 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            ticks: { color: '#6b7280', maxTicksLimit: 6, autoSkip: true },
-            grid: { display: false },
-          },
-          y: {
-            ticks: { color: '#6b7280', callback: (v) => v + '°' },
-            grid: { color: 'rgba(255,255,255,0.06)' },
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="60" />
+    <title>Living Room Temperature</title>
+    <style>
+      :root {
+        --accent: {{ accent }};
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: radial-gradient(circle at 30% 20%, #1f2937, #0b1120 70%);
+        color: #e5e7eb;
+        padding: 1.5rem;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        padding: 3rem 3.5rem;
+        text-align: center;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        max-width: 520px;
+        width: 100%;
+      }
+      .chart {
+        margin-top: 2rem;
+        height: 200px;
+      }
+      .label {
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-bottom: 1.5rem;
+      }
+      .comment {
+        margin-top: 1em;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-bottom: 1.5rem;
+      }
+      .comment-label {
+        text-transform: none;
+        font-weight: bold;
+        letter-spacing: normal;
+        margin-right: 1em;
+      }
+      .temp {
+        font-size: 5rem;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--accent);
+      }
+      .temp .unit {
+        font-size: 2rem;
+        font-weight: 500;
+        color: #9ca3af;
+        margin-left: 0.25rem;
+      }
+      .updated {
+        margin-top: 1.75rem;
+        font-size: 0.9rem;
+        color: #6b7280;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        margin-right: 0.4rem;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="label">
+        {% if lang == 'de_DE' %}Wohnzimmer{% else %}Living Room{% endif %}
+      </div>
+      <div class="temp">{{ value }}<span class="unit">{{ unit }}</span></div>
+      <div class="updated"><span class="dot"></span>Updated {{ updated }}</div>
+      <div class="comment">
+        <span class="comment-label"
+          >{% if lang == 'de_DE' %}Kommentar{% else %}Comment{% endif %}:</span
+        >{{ comment }}
+      </div>
+      <div class="chart"><canvas id="tempChart"></canvas></div>
+    </main>
+    <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
+    <script>
+      const labels = {{ labels | tojson }};
+      const points = {{ points | tojson }};
+      const accent = getComputedStyle(document.documentElement)
+        .getPropertyValue('--accent').trim();
+      new Chart(document.getElementById('tempChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: points,
+            borderColor: accent,
+            backgroundColor: accent + '22',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.35,
+            pointRadius: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: '#6b7280', maxTicksLimit: 6, autoSkip: true },
+              grid: { display: false },
+            },
+            y: {
+              ticks: { color: '#6b7280', callback: (v) => v + '°' },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
           },
         },
-      },
-    });
-  </script>
-</body>
+      });
+    </script>
+  </body>
 </html>
