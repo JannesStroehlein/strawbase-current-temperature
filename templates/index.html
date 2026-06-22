@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="refresh" content="60" />
-    <title>Living Room Temperature</title>
+    <title>
+      {% if lang == 'de_DE' %}Wohnzimmer Temperatur{% else %}Living Room
+      Temperature{% endif %}
+    </title>
     <style>
       :root {
         --accent: {{ accent }};
