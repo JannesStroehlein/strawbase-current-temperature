@@ -28,8 +28,12 @@
       text-align: center;
       backdrop-filter: blur(12px);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-      max-width: 420px;
+      max-width: 520px;
       width: 100%;
+    }
+    .chart {
+      margin-top: 2rem;
+      height: 200px;
     }
     .label {
       text-transform: uppercase;
@@ -71,6 +75,44 @@
     <div class="label">Living Room</div>
     <div class="temp">{{ value }}<span class="unit">{{ unit }}</span></div>
     <div class="updated"><span class="dot"></span>Updated {{ updated }}</div>
+    <div class="chart"><canvas id="tempChart"></canvas></div>
   </main>
+  <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
+  <script>
+    const labels = {{ labels | tojson }};
+    const points = {{ points | tojson }};
+    const accent = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent').trim();
+    new Chart(document.getElementById('tempChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: points,
+          borderColor: accent,
+          backgroundColor: accent + '22',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            ticks: { color: '#6b7280', maxTicksLimit: 6, autoSkip: true },
+            grid: { display: false },
+          },
+          y: {
+            ticks: { color: '#6b7280', callback: (v) => v + '°' },
+            grid: { color: 'rgba(255,255,255,0.06)' },
+          },
+        },
+      },
+    });
+  </script>
 </body>
 </html>

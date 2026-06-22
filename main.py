@@ -64,10 +64,30 @@ def hello_world():
     temperature_state = entity.get_state()
     temperature_value: float = float(str(temperature_state.state))
     last_changed = temperature_state.last_changed
+
+    now = datetime.datetime.now(tz=ZoneInfo("Europe/Berlin"))
+    labels: list[str] = []
+    points: list[float] = []
+    for history in client.get_entity_histories(
+        entities=(entity,),
+        start_timestamp=now - datetime.timedelta(hours=24),
+        end_timestamp=now,
+    ):
+        for s in history.states:
+            try:
+                points.append(float(str(s.state)))
+            except ValueError:
+                continue
+            labels.append(
+                s.last_changed.astimezone(ZoneInfo("Europe/Berlin")).strftime("%H:%M")
+            )
+
     return render_template(
         "index.html",
         value=temperature_state.state,
         unit=temperature_state.attributes["unit_of_measurement"],
         updated=pretty_date(last_changed),
         accent=temperature_accent(temperature_value),
+        labels=labels,
+        points=points,
     )
