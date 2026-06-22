@@ -1,4 +1,6 @@
 import random
+import threading
+import time
 from typing import TypedDict
 from zoneinfo import ZoneInfo
 import datetime
@@ -10,6 +12,9 @@ from babel.dates import format_date, format_timedelta
 from homeassistant_api import Client, State
 
 SUPPORTED_LOCALES = ["en_US", "de_DE"]
+
+# Seconds before cached HomeAssistant data is considered stale and re-queried.
+CACHE_TTL_SECONDS = float(os.getenv("CACHE_TTL_SECONDS", "30"))
 
 HASSIO_API_URL = os.getenv("HASSIO_API_URL")
 HASSIO_API_TOKEN = os.getenv("HASSIO_API_TOKEN")
@@ -62,13 +67,19 @@ STATE_COMMENTS_ENG: StateCommentMap = {
     "cold": ["Freezing"],
     "perfect": ["Perfect"],
     "warm": ["Too hot"],
-    "hot": ["Hot"],
+    "hot": [
+        "Hot",
+    ],
 }
 STATE_COMMENTS_DE: StateCommentMap = {
     "cold": ["Bibberkalt"],
     "perfect": ["Perfekt"],
     "warm": ["Es ist zu warm."],
-    "hot": ["Höllenfeuer"],
+    "hot": [
+        "Höllenfeuer",
+        "Warum ich?",
+        "Wenn Dachgeschoss Wohnungen Öfen sind: Macht ein Ventilator dann Umluft?",
+    ],
 }
 
 
@@ -90,17 +101,27 @@ def state_comment(value: float, lang: str) -> str:
     return "Kommentarlos" if lang == "de_DE" else "- No comment -"
 
 
-@app.route("/")
-def hello_world():
+class TemperatureData(TypedDict):
+    value: float
+    state: str
+    unit: str
+    last_changed: datetime.datetime
+    labels: list[str]
+    points: list[float]
+
+
+_cache_lock = threading.Lock()
+_cache: TemperatureData | None = None
+_cache_time: float = 0.0
+
+
+def fetch_temperature_data() -> TemperatureData | None:
+    """Query HomeAssistant for the current state and 24h history."""
     entity = client.get_entity(entity_id="sensor.climate_living_room_temperature")
     if not entity:
-        return "Temperatur konnte nicht geladen werden"
+        return None
 
-    locale, lang_code = negotiate_request_locale()
     temperature_state = entity.get_state()
-    temperature_value: float = float(str(temperature_state.state))
-    last_changed = temperature_state.last_changed
-
     now = datetime.datetime.now(tz=ZoneInfo("Europe/Berlin"))
     labels: list[str] = []
     points: list[float] = []
@@ -118,14 +139,47 @@ def hello_world():
                 s.last_changed.astimezone(ZoneInfo("Europe/Berlin")).strftime("%H:%M")
             )
 
-    return render_template(
-        "index.html",
-        comment=state_comment(temperature_value, lang_code),
-        value=temperature_state.state,
+    return TemperatureData(
+        value=float(str(temperature_state.state)),
+        state=str(temperature_state.state),
         unit=temperature_state.attributes["unit_of_measurement"],
-        updated=pretty_date(last_changed, locale),
-        accent=temperature_accent(temperature_value),
+        last_changed=temperature_state.last_changed,
         labels=labels,
         points=points,
+    )
+
+
+def get_temperature_data() -> TemperatureData | None:
+    """Return cached data, refreshing from HomeAssistant when older than the TTL."""
+    global _cache, _cache_time
+    with _cache_lock:
+        if _cache is None or (time.monotonic() - _cache_time) >= CACHE_TTL_SECONDS:
+            try:
+                fresh = fetch_temperature_data()
+            except Exception as exc:  # serve stale data on transient failures
+                print(f"Failed to refresh HomeAssistant data: {exc}")
+                fresh = None
+            if fresh is not None:
+                _cache = fresh
+                _cache_time = time.monotonic()
+        return _cache
+
+
+@app.route("/")
+def hello_world():
+    data = get_temperature_data()
+    if data is None:
+        return "Temperatur konnte nicht geladen werden"
+
+    locale, lang_code = negotiate_request_locale()
+    return render_template(
+        "index.html",
+        comment=state_comment(data["value"], lang_code),
+        value=data["state"],
+        unit=data["unit"],
+        updated=pretty_date(data["last_changed"], locale),
+        accent=temperature_accent(data["value"]),
+        labels=data["labels"],
+        points=data["points"],
         lang=locale.language,
     )

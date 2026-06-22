@@ -43,18 +43,27 @@
         margin-bottom: 1.5rem;
       }
       .comment {
-        margin-top: 1em;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        font-size: 0.8rem;
-        color: #9ca3af;
-        margin-bottom: 1.5rem;
+        margin-top: 1.75rem;
+        padding: 1rem 1.25rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        text-align: left;
       }
       .comment-label {
-        text-transform: none;
-        font-weight: bold;
-        letter-spacing: normal;
-        margin-right: 1em;
+        display: block;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #6b7280;
+        margin-bottom: 0.4rem;
+      }
+      .comment-text {
+        font-size: 1.05rem;
+        font-style: italic;
+        line-height: 1.4;
+        color: #e5e7eb;
       }
       .temp {
         font-size: 5rem;
@@ -93,8 +102,9 @@
       <div class="updated"><span class="dot"></span>Updated {{ updated }}</div>
       <div class="comment">
         <span class="comment-label"
-          >{% if lang == 'de_DE' %}Kommentar{% else %}Comment{% endif %}:</span
-        >{{ comment }}
+          >{% if lang == 'de_DE' %}Kommentar{% else %}Comment{% endif %}</span
+        >
+        <span class="comment-text">{{ comment }}</span>
       </div>
       <div class="chart"><canvas id="tempChart"></canvas></div>
     </main>
