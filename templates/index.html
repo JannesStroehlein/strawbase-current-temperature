@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="refresh" content="60" />
     <title>
-      {% if lang == 'de_DE' %}Wohnzimmer Temperatur{% else %}Living Room
+      {% if lang == 'de' %}Wohnzimmer Temperatur{% else %}Living Room
       Temperature{% endif %}
     </title>
     <style>
@@ -99,13 +99,16 @@
   <body>
     <main class="card">
       <div class="label">
-        {% if lang == 'de_DE' %}Wohnzimmer{% else %}Living Room{% endif %}
+        {% if lang == 'de' %}Wohnzimmer{% else %}Living Room{% endif %}
       </div>
       <div class="temp">{{ value }}<span class="unit">{{ unit }}</span></div>
-      <div class="updated"><span class="dot"></span>Updated {{ updated }}</div>
+      <div class="updated">
+        <span class="dot"></span>{% if lang == 'de' %}Aktualisiert{% else
+        %}Updated{% endif %} {{ updated }}
+      </div>
       <div class="comment">
         <span class="comment-label"
-          >{% if lang == 'de_DE' %}Kommentar{% else %}Comment{% endif %}</span
+          >{% if lang == 'de' %}Kommentar{% else %}Comment{% endif %}</span
         >
         <span class="comment-text">{{ comment }}</span>
       </div>
