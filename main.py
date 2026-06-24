@@ -1,3 +1,4 @@
+import bisect
 import datetime
 import os
 import sys
@@ -65,6 +66,7 @@ class TemperatureData(TypedDict):
     last_changed: datetime.datetime
     labels: list[str]
     points: list[float]
+    points_prev: list[float | None]
     delta_24h: float | None
     today_min: float | None
     today_max: float | None
@@ -127,8 +129,9 @@ def fetch_temperature_data() -> TemperatureData | None:
     temperature_state = entity.get_state()
     now = datetime.datetime.now(tz=HASSIO_TIMEZONE)
     day_cutoff = now - datetime.timedelta(hours=24)
-    # Fetch enough history to cover both the 24h chart and the heatmap window.
-    history_start = min(day_cutoff, now - datetime.timedelta(days=HEATMAP_DAYS))
+    # Cover the 24h chart, the 48h "vs yesterday" overlay, and the heatmap window.
+    needed_hours = max(48, HEATMAP_DAYS * 24)
+    history_start = now - datetime.timedelta(hours=needed_hours)
 
     samples: list[tuple[datetime.datetime, float]] = []
     for history in client.get_entity_histories(
@@ -144,19 +147,36 @@ def fetch_temperature_data() -> TemperatureData | None:
             samples.append((s.last_changed.astimezone(HASSIO_TIMEZONE), value))
 
     samples.sort(key=lambda sv: sv[0])
+    sample_times = [ts for ts, _ in samples]
 
-    labels = [ts.strftime("%H:%M") for ts, _ in samples if ts >= day_cutoff]
-    points = [value for ts, value in samples if ts >= day_cutoff]
+    def value_near(target: datetime.datetime, tolerance: float) -> float | None:
+        """Nearest sample value to ``target``, or None if none within ``tolerance`` s."""
+        if not samples:
+            return None
+        i = bisect.bisect_left(sample_times, target)
+        best: tuple[float, float] | None = None
+        for j in (i - 1, i):
+            if 0 <= j < len(samples):
+                dist = abs((sample_times[j] - target).total_seconds())
+                if best is None or dist < best[0]:
+                    best = (dist, samples[j][1])
+        if best is not None and best[0] <= tolerance:
+            return best[1]
+        return None
+
+    today_series = [(ts, value) for ts, value in samples if ts >= day_cutoff]
+    labels = [ts.strftime("%H:%M") for ts, _ in today_series]
+    points = [value for _, value in today_series]
+    # Same clock time 24h earlier, aligned onto today's x positions.
+    points_prev = [
+        value_near(ts - datetime.timedelta(hours=24), tolerance=1800)
+        for ts, _ in today_series
+    ]
 
     current = float(str(temperature_state.state))
-    delta_24h: float | None = None
-    if samples:
-        # Value closest to 24h ago, accepted only when reasonably near the mark.
-        ref_ts, ref_value = min(
-            samples, key=lambda sv: abs((sv[0] - day_cutoff).total_seconds())
-        )
-        if abs((ref_ts - day_cutoff).total_seconds()) <= 3 * 3600:
-            delta_24h = round(current - ref_value, 1)
+    # Value closest to 24h ago, accepted only when reasonably near the mark.
+    ref_value = value_near(day_cutoff, tolerance=3 * 3600)
+    delta_24h = round(current - ref_value, 1) if ref_value is not None else None
 
     today_values = [value for ts, value in samples if ts.date() == now.date()]
     today_min = min(today_values) if today_values else None
@@ -174,6 +194,7 @@ def fetch_temperature_data() -> TemperatureData | None:
         last_changed=temperature_state.last_changed,
         labels=labels,
         points=points,
+        points_prev=points_prev,
         delta_24h=delta_24h,
         today_min=today_min,
         today_max=today_max,
@@ -226,6 +247,8 @@ def index():
         accent=temp_class.color,
         labels=data["labels"],
         points=data["points"],
+        points_prev=data["points_prev"],
+        has_prev=any(p is not None for p in data["points_prev"]),
         delta=data["delta_24h"],
         today_min=data["today_min"],
         today_max=data["today_max"],
