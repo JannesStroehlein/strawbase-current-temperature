@@ -8,7 +8,7 @@ from typing import TypedDict
 import yaml
 from babel import Locale
 
-SUPPORTED_COMMENT_LANGS = ("en", "de")
+SUPPORTED_COMMENT_LANGS = {"en", "de"}
 
 
 class StateComments(TypedDict):
