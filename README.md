@@ -2,8 +2,12 @@
 
 Small Flask site showing the current living-room temperature from Home Assistant,
 with a localized "last updated" label, a state comment, a 24h history chart
-(Chart.js, vendored locally), a change-vs-24h-ago delta, and a GitHub-style
-heatmap of hourly averages over the last few days.
+(Chart.js, vendored locally) with a shaded comfort band, today's min/avg/max,
+a change-vs-24h-ago delta, and a GitHub-style heatmap of hourly averages over
+the last few days.
+
+A `/healthz` endpoint returns `200` when fresh Home Assistant data is available
+(`503` otherwise) for container liveness/readiness probes.
 
 ## Environment variables
 
@@ -14,7 +18,9 @@ heatmap of hourly averages over the last few days.
 | `HASSIO_TIMEZONE`           | no       | `Europe/Berlin`                  | Timezone of the Home Assistant instance.                          |
 | `HASSIO_TEMPERATURE_SENSOR` | no       | `sensor.living_room_temperature` | Sensor for the living room temperature.                           |
 | `CACHE_TTL_SECONDS`         | no       | `30`                             | Seconds before cached Home Assistant data is re-queried           |
-| `HEATMAP_DAYS`              | no       | `7`                              | Days of personal history exposed by the weekly heatmap            |
+| `HEATMAP_DAYS`              | no       | `7`                              | Days of personal history exposed by the weekly heatmap; `0` hides it |
+| `COMFORT_MIN`               | no       | `16`                             | Lower bound of the comfort band shaded on the chart (°)           |
+| `COMFORT_MAX`               | no       | `22`                             | Upper bound of the comfort band shaded on the chart (°)           |
 
 Copy `.env.example` to `.env` and fill in your values. `.env` is gitignored —
 never commit your token.

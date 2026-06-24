@@ -18,8 +18,12 @@ SUPPORTED_LOCALES = ["en_US", "de_DE"]
 # Seconds before cached HomeAssistant data is considered stale and re-queried.
 CACHE_TTL_SECONDS = float(os.getenv("CACHE_TTL_SECONDS", "30"))
 
-# Number of days of personal history exposed by the weekly heatmap.
-HEATMAP_DAYS = max(1, int(os.getenv("HEATMAP_DAYS", "7")))
+# Number of days of personal history exposed by the weekly heatmap; 0 disables it.
+HEATMAP_DAYS = max(0, int(os.getenv("HEATMAP_DAYS", "7")))
+
+# Comfortable temperature band, shaded on the chart.
+COMFORT_MIN = float(os.getenv("COMFORT_MIN", "16"))
+COMFORT_MAX = float(os.getenv("COMFORT_MAX", "22"))
 
 HASSIO_API_URL = os.getenv("HASSIO_API_URL")
 HASSIO_API_TOKEN = os.getenv("HASSIO_API_TOKEN")
@@ -62,6 +66,9 @@ class TemperatureData(TypedDict):
     labels: list[str]
     points: list[float]
     delta_24h: float | None
+    today_min: float | None
+    today_max: float | None
+    today_avg: float | None
     heatmap: list[list[float | None]]
     heat_dates: list[datetime.date]
     heat_min: float | None
@@ -151,6 +158,13 @@ def fetch_temperature_data() -> TemperatureData | None:
         if abs((ref_ts - day_cutoff).total_seconds()) <= 3 * 3600:
             delta_24h = round(current - ref_value, 1)
 
+    today_values = [value for ts, value in samples if ts.date() == now.date()]
+    today_min = min(today_values) if today_values else None
+    today_max = max(today_values) if today_values else None
+    today_avg = (
+        round(sum(today_values) / len(today_values), 1) if today_values else None
+    )
+
     heatmap, heat_dates, heat_min, heat_max = _build_heatmap(samples, now.date())
 
     return TemperatureData(
@@ -161,6 +175,9 @@ def fetch_temperature_data() -> TemperatureData | None:
         labels=labels,
         points=points,
         delta_24h=delta_24h,
+        today_min=today_min,
+        today_max=today_max,
+        today_avg=today_avg,
         heatmap=heatmap,
         heat_dates=heat_dates,
         heat_min=heat_min,
@@ -210,9 +227,23 @@ def index():
         labels=data["labels"],
         points=data["points"],
         delta=data["delta_24h"],
+        today_min=data["today_min"],
+        today_max=data["today_max"],
+        today_avg=data["today_avg"],
+        comfort_min=COMFORT_MIN,
+        comfort_max=COMFORT_MAX,
         heatmap=data["heatmap"],
         heat_labels=heat_labels,
         heat_min=data["heat_min"],
         heat_max=data["heat_max"],
         lang=locale.language,
     )
+
+
+@app.route("/healthz")
+def healthz():
+    """Liveness/readiness probe: 200 when fresh HA data is available, else 503."""
+    data = get_temperature_data()
+    if data is None:
+        return {"status": "unavailable"}, 503
+    return {"status": "ok"}

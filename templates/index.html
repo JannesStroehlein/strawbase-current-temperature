@@ -50,6 +50,30 @@
         color: #6b7280;
         font-weight: 400;
       }
+      .stats {
+        margin-top: 1.25rem;
+        display: flex;
+        justify-content: center;
+        gap: 2.5rem;
+      }
+      .stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+      }
+      .stat-label {
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #6b7280;
+      }
+      .stat-val {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #e5e7eb;
+      }
       .heatmap {
         margin-top: 2rem;
       }
@@ -171,11 +195,26 @@
         >
       </div>
       {% endif %}
-
-      <div class="updated">
-        <span class="dot"></span>{% if lang == 'de' %}Aktualisiert{% else
-        %}Updated{% endif %} {{ updated }}
+      {% if today_avg is not none %}
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label"
+            >{% if lang == 'de' %}Min{% else %}Low{% endif %}</span
+          ><span class="stat-val">{{ '%.1f'|format(today_min) }}°</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Ø</span
+          ><span class="stat-val">{{ '%.1f'|format(today_avg) }}°</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label"
+            >{% if lang == 'de' %}Max{% else %}High{% endif %}</span
+          ><span class="stat-val">{{ '%.1f'|format(today_max) }}°</span>
+        </div>
       </div>
+      {% endif %}
+
+
       <div class="comment">
         <span class="comment-label"
           >{% if lang == 'de' %}Kommentar{% else %}Comment{% endif %}</span
@@ -208,6 +247,11 @@
         </div>
       </div>
       {% endif %}
+
+      <div class="updated">
+        <span class="dot"></span>{% if lang == 'de' %}Aktualisiert{% else
+        %}Updated{% endif %} {{ updated }}
+      </div>
     </main>
     <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
     <script>
@@ -215,8 +259,41 @@
       const points = {{ points | tojson }};
       const accent = getComputedStyle(document.documentElement)
         .getPropertyValue('--accent').trim();
+
+      const comfort = { min: {{ comfort_min | tojson }}, max: {{ comfort_max | tojson }} };
+      const comfortBand = {
+        id: 'comfortBand',
+        beforeDatasetsDraw(chart) {
+          const { ctx, chartArea, scales } = chart;
+          if (!chartArea) return;
+          const y = scales.y;
+          const left = chartArea.left;
+          const right = chartArea.right;
+          const top = Math.max(chartArea.top, y.getPixelForValue(comfort.max));
+          const bottom = Math.min(chartArea.bottom, y.getPixelForValue(comfort.min));
+          if (bottom <= top) return;
+          ctx.save();
+          // Faint neutral fill.
+          ctx.fillStyle = 'rgba(229, 231, 235, 0.05)';
+          ctx.fillRect(left, top, right - left, bottom - top);
+          // Dashed boundary lines at the comfort edges.
+          ctx.strokeStyle = 'rgba(229, 231, 235, 0.25)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          for (const edge of [top, bottom]) {
+            if (edge <= chartArea.top || edge >= chartArea.bottom) continue;
+            ctx.beginPath();
+            ctx.moveTo(left, edge);
+            ctx.lineTo(right, edge);
+            ctx.stroke();
+          }
+          ctx.restore();
+        },
+      };
+
       new Chart(document.getElementById('tempChart'), {
         type: 'line',
+        plugins: [comfortBand],
         data: {
           labels: labels,
           datasets: [{
