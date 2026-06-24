@@ -21,9 +21,27 @@ A `/healthz` endpoint returns `200` when fresh Home Assistant data is available
 | `HEATMAP_DAYS`              | no       | `7`                              | Days of personal history exposed by the weekly heatmap; `0` hides it |
 | `COMFORT_MIN`               | no       | `16`                             | Lower bound of the comfort band shaded on the chart (°)           |
 | `COMFORT_MAX`               | no       | `22`                             | Upper bound of the comfort band shaded on the chart (°)           |
+| `TEMPERATURE_CONFIG`        | no       | `temperature_classes.yaml`       | Path to the temperature class config (colors + comments)          |
 
 Copy `.env.example` to `.env` and fill in your values. `.env` is gitignored —
 never commit your token.
+
+## Temperature classes
+
+Colors and localized comments per temperature band live in
+`temperature_classes.yaml` (override the path with `TEMPERATURE_CONFIG`). The
+file is loaded and validated once at startup; on a missing or malformed config
+the app prints the error and exits. Each entry needs a `min` threshold, an
+accent `color`, and non-empty `comments.en` / `comments.de` lists:
+
+```yaml
+classes:
+  - min: 16
+    color: "#34d399"
+    comments:
+      en: ["Perfect"]
+      de: ["Perfekt"]
+```
 
 ## Run locally
 

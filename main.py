@@ -12,7 +12,7 @@ from babel.dates import format_date, format_timedelta
 from flask import Flask, render_template, request
 from homeassistant_api import Client, State
 
-from temperature_classes import TemperatureClass
+from temperature_classes import TemperatureConfigError, load_temperature_classes
 
 SUPPORTED_LOCALES = ["en_US", "de_DE"]
 
@@ -25,6 +25,14 @@ HEATMAP_DAYS = max(0, int(os.getenv("HEATMAP_DAYS", "7")))
 # Comfortable temperature band, shaded on the chart.
 COMFORT_MIN = float(os.getenv("COMFORT_MIN", "16"))
 COMFORT_MAX = float(os.getenv("COMFORT_MAX", "22"))
+
+# Temperature class definitions (colors + localized comments).
+TEMPERATURE_CONFIG = os.getenv("TEMPERATURE_CONFIG", "temperature_classes.yaml")
+try:
+    temperature_classes = load_temperature_classes(TEMPERATURE_CONFIG)
+except TemperatureConfigError as exc:
+    print(f"Invalid temperature config ({TEMPERATURE_CONFIG}): {exc}")
+    sys.exit(1)
 
 HASSIO_API_URL = os.getenv("HASSIO_API_URL")
 HASSIO_API_TOKEN = os.getenv("HASSIO_API_TOKEN")
@@ -158,7 +166,7 @@ def fetch_temperature_data() -> TemperatureData | None:
         for j in (i - 1, i):
             if 0 <= j < len(samples):
                 dist = abs((sample_times[j] - target).total_seconds())
-                if best is None or dist < best[0]:
+                if best is None or dist < best[0]:  # pylint: disable=unsubscriptable-object
                     best = (dist, samples[j][1])
         if best is not None and best[0] <= tolerance:
             return best[1]
@@ -232,7 +240,7 @@ def index():
     # TODO: Add heat wave shader effect
     locale = negotiate_request_locale()
 
-    temp_class = TemperatureClass.for_temperature(data["value"])
+    temp_class = temperature_classes.for_temperature(data["value"])
 
     heat_labels = [
         format_date(d, format="EEE", locale=locale) for d in data["heat_dates"]

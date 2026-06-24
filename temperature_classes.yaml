@@ -1,0 +1,38 @@
+# Temperature classes, evaluated from the highest matching `min` downwards.
+# Each class needs: min (°C threshold), color (accent hex), comments.en, comments.de.
+classes:
+  - min: 0
+    color: "#60a5fa"
+    comments:
+      en:
+        - Freezing
+      de:
+        - Bibberkalt
+        - Brrrrt 🥶
+  - min: 16
+    color: "#34d399"
+    comments:
+      en:
+        - Perfect
+      de:
+        - Perfekt
+  - min: 22
+    color: "#fbbf24"
+    comments:
+      en:
+        - Too hot
+      de:
+        - Es ist zu warm.
+  - min: 26
+    color: "#f87171"
+    comments:
+      en:
+        - Hot
+      de:
+        - Höllenfeuer
+        - Warum ich?
+        - "Wenn Dachgeschoss Wohnungen Öfen sind: Macht ein Ventilator dann Umluft?"
+        - Perfektes Wetter um auf dem Weg zum Eiscafé zu verbrennen
+        - Hier hilft nur noch der Arzt
+        - Kauft mir jemand eine Klimaanlage?
+        - Holt mich hier raus!
