@@ -18,8 +18,15 @@ SUPPORTED_LOCALES = ["en_US", "de_DE"]
 # Seconds before cached HomeAssistant data is considered stale and re-queried.
 CACHE_TTL_SECONDS = float(os.getenv("CACHE_TTL_SECONDS", "30"))
 
+# Number of days of personal history exposed by the weekly heatmap.
+HEATMAP_DAYS = max(1, int(os.getenv("HEATMAP_DAYS", "7")))
+
 HASSIO_API_URL = os.getenv("HASSIO_API_URL")
 HASSIO_API_TOKEN = os.getenv("HASSIO_API_TOKEN")
+HASSIO_TEMPERATURE_SENSOR = os.getenv(
+    "HASSIO_TEMPERATURE_SENSOR", "sensor.living_room_temperature"
+)
+HASSIO_TIMEZONE = ZoneInfo(os.getenv("HASSIO_TIMEZONE", "Europe/Berlin"))
 
 client = Client(HASSIO_API_URL, HASSIO_API_TOKEN)
 
@@ -41,7 +48,7 @@ def negotiate_request_locale() -> Locale:
 
 
 def pretty_date(d: datetime.datetime, locale: Locale) -> str:
-    delta = d - datetime.datetime.now(tz=ZoneInfo("Europe/Berlin"))
+    delta = d - datetime.datetime.now(tz=HASSIO_TIMEZONE)
     if abs(delta).days > 7:
         return format_date(d, locale=locale)
     return format_timedelta(delta, add_direction=True, locale=locale)
@@ -54,6 +61,11 @@ class TemperatureData(TypedDict):
     last_changed: datetime.datetime
     labels: list[str]
     points: list[float]
+    delta_24h: float | None
+    heatmap: list[list[float | None]]
+    heat_dates: list[datetime.date]
+    heat_min: float | None
+    heat_max: float | None
 
 
 _cache_lock = threading.Lock()
@@ -61,37 +73,98 @@ _cache: TemperatureData | None = None
 _cache_time: float = 0.0
 
 
+def _build_heatmap(
+    samples: list[tuple[datetime.datetime, float]], today: datetime.date
+) -> tuple[list[list[float | None]], list[datetime.date], float | None, float | None]:
+    """Bucket samples into a days x 24h grid of hourly averages."""
+    start_date = today - datetime.timedelta(days=HEATMAP_DAYS - 1)
+    dates = [start_date + datetime.timedelta(days=i) for i in range(HEATMAP_DAYS)]
+
+    sums: dict[tuple[datetime.date, int], list[float]] = {}
+    for ts, value in samples:
+        if ts.date() < start_date:
+            continue
+        sums.setdefault((ts.date(), ts.hour), [0.0, 0.0])
+        agg = sums[(ts.date(), ts.hour)]
+        agg[0] += value
+        agg[1] += 1
+
+    grid: list[list[float | None]] = []
+    values: list[float] = []
+    for d in dates:
+        row: list[float | None] = []
+        for hour in range(24):
+            agg = sums.get((d, hour))
+            if agg:
+                avg = agg[0] / agg[1]
+                row.append(avg)
+                values.append(avg)
+            else:
+                row.append(None)
+        grid.append(row)
+
+    return (
+        grid,
+        dates,
+        (min(values) if values else None),
+        (max(values) if values else None),
+    )
+
+
 def fetch_temperature_data() -> TemperatureData | None:
-    """Query HomeAssistant for the current state and 24h history."""
-    entity = client.get_entity(entity_id="sensor.climate_living_room_temperature")
+    """Query HomeAssistant for the current state plus history for chart and heatmap."""
+    entity = client.get_entity(entity_id=HASSIO_TEMPERATURE_SENSOR)
     if not entity:
         return None
 
     temperature_state = entity.get_state()
-    now = datetime.datetime.now(tz=ZoneInfo("Europe/Berlin"))
-    labels: list[str] = []
-    points: list[float] = []
+    now = datetime.datetime.now(tz=HASSIO_TIMEZONE)
+    day_cutoff = now - datetime.timedelta(hours=24)
+    # Fetch enough history to cover both the 24h chart and the heatmap window.
+    history_start = min(day_cutoff, now - datetime.timedelta(days=HEATMAP_DAYS))
+
+    samples: list[tuple[datetime.datetime, float]] = []
     for history in client.get_entity_histories(
         entities=(entity,),
-        start_timestamp=now - datetime.timedelta(hours=24),
+        start_timestamp=history_start,
         end_timestamp=now,
     ):
         for s in history.states:
             try:
-                points.append(float(str(s.state)))
+                value = float(str(s.state))
             except ValueError:
                 continue
-            labels.append(
-                s.last_changed.astimezone(ZoneInfo("Europe/Berlin")).strftime("%H:%M")
-            )
+            samples.append((s.last_changed.astimezone(HASSIO_TIMEZONE), value))
+
+    samples.sort(key=lambda sv: sv[0])
+
+    labels = [ts.strftime("%H:%M") for ts, _ in samples if ts >= day_cutoff]
+    points = [value for ts, value in samples if ts >= day_cutoff]
+
+    current = float(str(temperature_state.state))
+    delta_24h: float | None = None
+    if samples:
+        # Value closest to 24h ago, accepted only when reasonably near the mark.
+        ref_ts, ref_value = min(
+            samples, key=lambda sv: abs((sv[0] - day_cutoff).total_seconds())
+        )
+        if abs((ref_ts - day_cutoff).total_seconds()) <= 3 * 3600:
+            delta_24h = round(current - ref_value, 1)
+
+    heatmap, heat_dates, heat_min, heat_max = _build_heatmap(samples, now.date())
 
     return TemperatureData(
-        value=float(str(temperature_state.state)),
+        value=current,
         state=str(temperature_state.state),
         unit=temperature_state.attributes["unit_of_measurement"],
         last_changed=temperature_state.last_changed,
         labels=labels,
         points=points,
+        delta_24h=delta_24h,
+        heatmap=heatmap,
+        heat_dates=heat_dates,
+        heat_min=heat_min,
+        heat_max=heat_max,
     )
 
 
@@ -123,6 +196,10 @@ def index():
 
     temp_class = TemperatureClass.for_temperature(data["value"])
 
+    heat_labels = [
+        format_date(d, format="EEE", locale=locale) for d in data["heat_dates"]
+    ]
+
     return render_template(
         "index.html",
         comment=temp_class.pick_comment(locale),
@@ -132,5 +209,10 @@ def index():
         accent=temp_class.color,
         labels=data["labels"],
         points=data["points"],
+        delta=data["delta_24h"],
+        heatmap=data["heatmap"],
+        heat_labels=heat_labels,
+        heat_min=data["heat_min"],
+        heat_max=data["heat_max"],
         lang=locale.language,
     )

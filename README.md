@@ -1,16 +1,20 @@
 # strawbase-current-temperature
 
 Small Flask site showing the current living-room temperature from Home Assistant,
-with a localized "last updated" label, a state comment, and a 24h history chart
-(Chart.js, vendored locally).
+with a localized "last updated" label, a state comment, a 24h history chart
+(Chart.js, vendored locally), a change-vs-24h-ago delta, and a GitHub-style
+heatmap of hourly averages over the last few days.
 
 ## Environment variables
 
-| Variable            | Required | Default | Description                                                       |
-| ------------------- | -------- | ------- | ----------------------------------------------------------------- |
-| `HASSIO_API_URL`    | yes      | —       | Home Assistant REST API base URL, e.g. `http://ha.local:8123/api` |
-| `HASSIO_API_TOKEN`  | yes      | —       | Long-lived access token for the Home Assistant API                |
-| `CACHE_TTL_SECONDS` | no       | `30`    | Seconds before cached Home Assistant data is re-queried           |
+| Variable                    | Required | Default                          | Description                                                       |
+| --------------------------- | -------- | -------------------------------- | ----------------------------------------------------------------- |
+| `HASSIO_API_URL`            | yes      | —                                | Home Assistant REST API base URL, e.g. `http://ha.local:8123/api` |
+| `HASSIO_API_TOKEN`          | yes      | —                                | Long-lived access token for the Home Assistant API                |
+| `HASSIO_TIMEZONE`           | no       | `Europe/Berlin`                  | Timezone of the Home Assistant instance.                          |
+| `HASSIO_TEMPERATURE_SENSOR` | no       | `sensor.living_room_temperature` | Sensor for the living room temperature.                           |
+| `CACHE_TTL_SECONDS`         | no       | `30`                             | Seconds before cached Home Assistant data is re-queried           |
+| `HEATMAP_DAYS`              | no       | `7`                              | Days of personal history exposed by the weekly heatmap            |
 
 Copy `.env.example` to `.env` and fill in your values. `.env` is gitignored —
 never commit your token.

@@ -1,0 +1,18 @@
+{
+  "configurations": [
+    {
+      "name": "Python Debugger: Flask",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "envFile": "${workspaceFolder}/.env.local",
+      "env": {
+        "FLASK_APP": "main.py",
+        "FLASK_DEBUG": "1"
+      },
+      "args": ["run", "--no-debugger", "--no-reload"],
+      "jinja": true,
+      "justMyCode": true
+    }
+  ]
+}

@@ -38,6 +38,63 @@
         margin-top: 2rem;
         height: 200px;
       }
+      .delta {
+        margin-top: 0.75rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+      .delta.up { color: #f87171; }
+      .delta.down { color: #60a5fa; }
+      .delta.flat { color: #9ca3af; }
+      .delta .delta-note {
+        color: #6b7280;
+        font-weight: 400;
+      }
+      .heatmap {
+        margin-top: 2rem;
+      }
+      .heatmap-label {
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+        text-align: left;
+      }
+      .hm-row {
+        display: grid;
+        grid-template-columns: 2.4rem repeat(24, 1fr);
+        gap: 3px;
+        align-items: center;
+        margin-bottom: 3px;
+      }
+      .hm-day {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-align: right;
+        padding-right: 0.4rem;
+      }
+      .hm-cell {
+        aspect-ratio: 1;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .hm-axis {
+        display: grid;
+        grid-template-columns: 2.4rem repeat(24, 1fr);
+        gap: 3px;
+        margin-top: 0.4rem;
+        font-size: 0.6rem;
+        color: #6b7280;
+      }
+      .hm-axis span {
+        grid-column: span 6;
+        text-align: left;
+      }
+      .hm-axis span:first-child {
+        grid-column: 1 / 2;
+      }
       .label {
         text-transform: uppercase;
         letter-spacing: 0.18em;
@@ -102,6 +159,19 @@
         {% if lang == 'de' %}Wohnzimmer{% else %}Living Room{% endif %}
       </div>
       <div class="temp">{{ value }}<span class="unit">{{ unit }}</span></div>
+      {% if delta is not none %}
+      <div
+        class="delta {{ 'up' if delta > 0 else 'down' if delta < 0 else 'flat' }}"
+      >
+        {% if delta > 0 %}▲ +{{ delta }}°{% elif delta < 0 %}▼ {{ delta }}°{%
+        else %}± 0°{% endif %}
+        <span class="delta-note"
+          >{% if lang == 'de' %}ggü. vor 24 h{% else %}vs 24h ago{% endif
+          %}</span
+        >
+      </div>
+      {% endif %}
+
       <div class="updated">
         <span class="dot"></span>{% if lang == 'de' %}Aktualisiert{% else
         %}Updated{% endif %} {{ updated }}
@@ -113,6 +183,31 @@
         <span class="comment-text">{{ comment }}</span>
       </div>
       <div class="chart"><canvas id="tempChart"></canvas></div>
+
+      {% if heat_min is not none %}
+      <div class="heatmap">
+        <div class="heatmap-label">
+          {% if lang == 'de' %}Letzte Tage{% else %}Recent days{% endif %}
+        </div>
+        {% for row in heatmap %} {% set day = heat_labels[loop.index0] %}
+        <div class="hm-row">
+          <span class="hm-day">{{ day }}</span>
+          {% for v in row %}
+          <span
+            class="hm-cell"
+            {% if v is not none%}data-val="{{ '%.1f'|format(v) }}"
+            title="{{ day }} {{ '%02d'|format(loop.index0) }}:00 · {{ '%.1f'|format(v) }}{{ unit }}"
+            {%endif%}
+          ></span>
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="hm-axis">
+          <span></span><span>0</span><span>6</span><span>12</span
+          ><span>18</span>
+        </div>
+      </div>
+      {% endif %}
     </main>
     <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
     <script>
@@ -150,6 +245,17 @@
           },
         },
       });
+
+      const heatMin = {{ heat_min | tojson }};
+      const heatMax = {{ heat_max | tojson }};
+      if (heatMin !== null) {
+        const span = heatMax > heatMin ? heatMax - heatMin : 1;
+        const toHex = (a) => Math.round(a * 255).toString(16).padStart(2, '0');
+        document.querySelectorAll('.hm-cell[data-val]').forEach((cell) => {
+          const t = (parseFloat(cell.dataset.val) - heatMin) / span;
+          cell.style.background = accent + toHex(0.15 + t * 0.85);
+        });
+      }
     </script>
   </body>
 </html>
